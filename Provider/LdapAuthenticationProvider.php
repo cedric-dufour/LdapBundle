@@ -34,11 +34,12 @@ class LdapAuthenticationProvider implements AuthenticationProviderInterface
      * Please note that $hideUserNotFoundExceptions is true by default in order
      * to prevent a possible brute-force attack.
      *
-     * @param UserProviderInterface    $userProvider
-     * @param LdapManagerUserInterface $ldapManager
-     * @param EventDispatcherInterface $dispatcher
-     * @param string                   $providerKey
-     * @param Boolean                  $hideUserNotFoundExceptions
+     * @param UserProviderInterface           $userProvider
+     * @param AuthenticationProviderInterface $daoAuthenticationProvider
+     * @param LdapManagerUserInterface        $ldapManager
+     * @param EventDispatcherInterface        $dispatcher
+     * @param string                          $providerKey
+     * @param Boolean                         $hideUserNotFoundExceptions
      */
     public function __construct(
         UserProviderInterface $userProvider,
