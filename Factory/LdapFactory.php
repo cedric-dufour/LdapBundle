@@ -12,11 +12,13 @@ class LdapFactory extends AbstractFactory
 {
     public function __construct()
     {
-        $this->addOption('username_parameter', '_username');
-        $this->addOption('password_parameter', '_password');
-        $this->addOption('csrf_parameter', '_csrf_token');
-        $this->addOption('intention', 'ldap_authenticate');
-        $this->addOption('post_only', true);
+        // Null options shall be replaced by sensible defaults in the LdapListener
+        $this->addOption('username_parameter', null);
+        $this->addOption('password_parameter', null);
+        $this->addOption('csrf_parameter', null);
+        $this->addOption('intention', null);
+        $this->addOption('csrf_token_id', null);
+        $this->addOption('post_only', null);
     }
 
     public function getPosition()
@@ -32,10 +34,15 @@ class LdapFactory extends AbstractFactory
     public function addConfiguration(NodeDefinition $node)
     {
         parent::addConfiguration($node);
-    
+
+        // CSRF
+        //   Symfony 3.x: 'csrf_provider' replaced by 'csrf_token_generator'
+        //    <-> https://github.com/symfony/symfony/blob/master/UPGRADE-3.0.md#form
+        //   Backward-compatibility: keep both options (until Symfony 2.x is EOL)
         $node
             ->children()
                 ->scalarNode('csrf_provider')->cannotBeEmpty()->end()
+                ->scalarNode('csrf_token_generator')->cannotBeEmpty()->end()
             ->end()
             ;
     }
@@ -69,10 +76,27 @@ class LdapFactory extends AbstractFactory
     {
         $listenerId = parent::createListener($container, $id, $config, $userProvider);
 
+        // CSRF
+        //   Symfony 3.x: 'csrf_provider' replaced by 'csrf_token_generator'
+        //    <-> https://github.com/symfony/symfony/blob/master/UPGRADE-3.0.md#form
+        //   Backward-compatibility: keep both options (until Symfony 2.x is EOL)
+        $csrfTokenGenerator = null;
         if (isset($config['csrf_provider'])) {
+            $csrfTokenGenerator = $config['csrf_provider'];
+            @trigger_error('"csrf_provider" option is deprecated (>=2.4); please use "csrf_token_generator" instead', E_USER_DEPRECATED);
+        }
+        if (isset($config['csrf_token_generator'])) {
+            $csrfTokenGenerator = $config['csrf_token_generator'];
+        }
+        if($csrfTokenGenerator == 'form.csrf_provider') {
+            @trigger_error('"form.csrf_provider" is deprecated (>=2.4); USING "security.csrf.token_manager" INSTEAD', E_USER_DEPRECATED);
+            $csrfTokenGenerator = 'security.csrf.token_manager';
+        }
+
+        if (!is_null($csrfTokenGenerator)) {
             $container
                 ->getDefinition($listenerId)
-                ->addArgument(new Reference($config['csrf_provider']))
+                ->addArgument(new Reference($csrfTokenGenerator))
                 ;
         }
 

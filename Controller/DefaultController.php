@@ -23,7 +23,6 @@ class DefaultController extends Controller
         return $this->render('IMAGLdapBundle:Default:login.html.twig', array(
             'last_username' => $this->get('request')->getSession()->get(Security::LAST_USERNAME),
             'error'         => $error,
-            'token'         => $this->generateToken(),
         ));
     }
 
@@ -34,13 +33,5 @@ class DefaultController extends Controller
         }
 
         return $this->get('request')->getSession()->get(Security::AUTHENTICATION_ERROR);
-    }
-
-    protected function generateToken()
-    {
-        $token = $this->get('form.csrf_provider')
-                      ->generateCsrfToken('authenticate');
-
-        return $token;
     }
 }

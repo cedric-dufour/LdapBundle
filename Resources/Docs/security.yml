@@ -6,8 +6,7 @@ security:
             imag_ldap:
                 check_path: login_check
                 login_path: login
-                csrf_provider: form.csrf_provider
-                intention: authenticate
+                csrf_token_generator: security.csrf.token_manager
                 provider: ldap
             logout:
                 path:           /logout

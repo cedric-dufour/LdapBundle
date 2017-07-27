@@ -3,7 +3,6 @@
 namespace IMAG\LdapBundle\EventListener;
 
 use Symfony\Component\EventDispatcher\EventDispatcherInterface,
-    Symfony\Component\Form\Extension\Csrf\CsrfProvider\CsrfProviderInterface,
     Symfony\Component\HttpFoundation\Request,
     Psr\Log\LoggerInterface,
     Symfony\Component\Security\Core\Authentication\AuthenticationManagerInterface,
@@ -11,6 +10,8 @@ use Symfony\Component\EventDispatcher\EventDispatcherInterface,
     Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface,
     Symfony\Component\Security\Core\Exception\InvalidCsrfTokenException,
     Symfony\Component\Security\Core\Security,
+    Symfony\Component\Security\Csrf\CsrfToken,
+    Symfony\Component\Security\Csrf\CsrfTokenManagerInterface,
     Symfony\Component\Security\Http\Authentication\AuthenticationFailureHandlerInterface,
     Symfony\Component\Security\Http\Authentication\AuthenticationSuccessHandlerInterface,
     Symfony\Component\Security\Http\Firewall\AbstractAuthenticationListener,
@@ -30,8 +31,32 @@ class LdapListener extends AbstractAuthenticationListener
                                 array $options = array(),
                                 LoggerInterface $logger = null,
                                 EventDispatcherInterface $dispatcher = null,
-                                CsrfProviderInterface $csrfProvider = null)
+                                CsrfTokenManagerInterface $csrfTokenManager = null)
     {
+        // CSRF
+        //   Symfony 3.x: 'intention' replaced by 'csrf_token_id'
+        //    <-> https://github.com/symfony/symfony/blob/master/UPGRADE-3.0.md#form
+        //   Backward-compatibility: keep both options (until Symfony 2.x is EOL)
+        if(is_null($options['csrf_token_id'])) {
+            $options['csrf_token_id'] = $options['intention'];
+        }
+        if(isset($options['intention'])) {
+            @trigger_error('(CSRF) "intention" option is deprecated (>=2.4); please use "csrf_token_id" instead', E_USER_DEPRECATED);
+            unset($options['intention']);
+        }
+
+        // Options (override defaults)
+        $options = array_merge(
+            array(
+                'username_parameter' => '_username',
+                'password_parameter' => '_password',
+                'csrf_parameter'     => '_csrf_token',
+                'csrf_token_id'      => 'authenticate',
+                'post_only'          => true,
+            ),
+            array_filter($options, function($v) {return !is_null($v);})
+        );
+
         parent::__construct(
             $tokenStorage,
             $authenticationManager,
@@ -40,18 +65,12 @@ class LdapListener extends AbstractAuthenticationListener
             $providerKey,
             $successHandler,
             $failureHandler,
-            array_merge(array(
-                'username_parameter' => '_username',
-                'password_parameter' => '_password',
-                'csrf_parameter'     => '_csrf_token',
-                'intention'          => 'ldap_authenticate',
-                'post_only'          => true,
-            ), $options),
+            $options,
             $logger,
             $dispatcher
         );
-        
-        $this->csrfProvider = $csrfProvider;
+
+        $this->csrfTokenManager = $csrfTokenManager;
     }
 
     /**
@@ -76,10 +95,13 @@ class LdapListener extends AbstractAuthenticationListener
             return null;
         }
 
-        if (null !== $this->csrfProvider) {
-            $csrfToken = $request->get($this->options['csrf_parameter'], null, true);
+        if (null !== $this->csrfTokenManager) {
+            $csrfToken = new CsrfToken(
+                $this->options['csrf_token_id'],
+                $request->get($this->options['csrf_parameter'], null, true)
+            );
 
-            if (false === $this->csrfProvider->isCsrfTokenValid($this->options['intention'], $csrfToken)) {
+            if (false === $this->csrfTokenManager->isTokenValid($csrfToken)) {
                 throw new InvalidCsrfTokenException('Invalid CSRF token.');
             }
         }
